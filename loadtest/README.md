@@ -57,7 +57,9 @@ Yerel çalıştırma: `./gradlew bootRun`
 |-------|----------|
 | `smoke.js` | Kısa smoke test (5 VU, 15 sn). API'nin cevap verdiğini kontrol eder. |
 | `events-single.js` | POST /events. Ortalama ~2K req/sn, peak ~20K req/sn. |
+| `events-single-peak20k.js` | POST /events. **Sadece 20K pik odaklı**: 2500 VU, 3 dk pik, `events` rate threshold. |
 | `events-bulk.js` | POST /events/bulk. Ortalama ~2K event/sn, peak ~20K event/sn; istek başına 50 event. |
+| `events-bulk-peak20k.js` | POST /events/bulk. **Sadece 20K pik odaklı**: 400 VU × 50 event, 3 dk pik, `events` rate threshold. |
 
 ---
 
@@ -72,8 +74,14 @@ k6 run loadtest/smoke.js
 # Tek event yük testi (varsayılan http://localhost:8080)
 k6 run loadtest/events-single.js
 
+# 20K pik odaklı – tek event
+k6 run loadtest/events-single-peak20k.js
+
 # Toplu event yük testi
 k6 run loadtest/events-bulk.js
+
+# 20K pik odaklı test (sadece pik yükü doğrular)
+k6 run loadtest/events-bulk-peak20k.js
 ```
 
 ### Farklı base URL (uzak sunucu veya farklı port)
@@ -270,6 +278,8 @@ cd /path/to/insider-one/assessment
 k6 run loadtest/smoke.js
 k6 run loadtest/events-single.js
 k6 run loadtest/events-bulk.js
+k6 run loadtest/events-bulk-peak20k.js
+k6 run loadtest/events-single-peak20k.js
 ```
 
 Farklı makinedeki API için:
@@ -277,5 +287,7 @@ Farklı makinedeki API için:
 ```bash
 BASE_URL=http://SUNUCU_IP:8080 k6 run loadtest/smoke.js
 BASE_URL=http://SUNUCU_IP:8080 k6 run loadtest/events-single.js
+BASE_URL=http://SUNUCU_IP:8080 k6 run loadtest/events-single-peak20k.js
 BASE_URL=http://SUNUCU_IP:8080 k6 run loadtest/events-bulk.js
+BASE_URL=http://SUNUCU_IP:8080 k6 run loadtest/events-bulk-peak20k.js
 ```

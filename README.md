@@ -281,8 +281,14 @@ k6 run loadtest/smoke.js
 # Tek event yük testi (~2K req/s ortalama, ~20K peak)
 k6 run loadtest/events-single.js
 
+# 20K pik odaklı – tek event (sadece pik doğrulama)
+k6 run loadtest/events-single-peak20k.js
+
 # Toplu event (istek başına 50 event)
 k6 run loadtest/events-bulk.js
+
+# 20K pik odaklı – bulk (sadece pik doğrulama)
+k6 run loadtest/events-bulk-peak20k.js
 ```
 
 Farklı base URL (macOS/Linux):
@@ -290,6 +296,20 @@ Farklı base URL (macOS/Linux):
 ```bash
 BASE_URL=http://localhost:8080 k6 run loadtest/events-single.js
 ```
+
+### 20K pik odaklı testler
+
+`events-*-peak20k.js` scriptleri **sadece pik yükü** doğrular; ortalama yük aşaması yok. Kısa ramp-up, 3 dakika pik sürdürme, `events` custom metriği ile event/sn ölçülür.
+
+| Script | Hedef | Senaryo |
+|--------|-------|---------|
+| `events-single-peak20k.js` | ~20K req/sn | 2500 VU, 3 dk pik |
+| `events-bulk-peak20k.js` | ~20K event/sn | 400 VU × 50 event, 3 dk pik |
+
+**Çıktıyı yorumlama:**
+- **events** satırında `xxx/s` → saniyede event sayısı (hedef ~20K)
+- Threshold `rate>15000` → ramp dahil ortalama en az ~15K event/sn
+- Tüm threshold’lar ✓ ve `http_req_failed` %0’a yakınsa pik hedef karşılanıyor
 
 Ayrıntılar için [loadtest/README.md](loadtest/README.md).
 
@@ -526,7 +546,9 @@ assessment/
 ├── loadtest/
 │   ├── smoke.js
 │   ├── events-single.js
+│   ├── events-single-peak20k.js
 │   ├── events-bulk.js
+│   ├── events-bulk-peak20k.js
 │   └── README.md
 ├── build.gradle
 ├── src/main/
