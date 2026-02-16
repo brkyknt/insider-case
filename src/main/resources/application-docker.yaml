@@ -1,0 +1,11 @@
+# Docker profile: Compose ile SPRING_PROFILES_ACTIVE=docker kullanılır; datasource url ve kafka bootstrap-servers override (README: Uygulama yapılandırması).
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/insiderone
+    username: insider
+    password: insider123
+  kafka:
+    bootstrap-servers: kafka:29092
+    consumer:
+      properties:
+        spring.json.trusted.packages: "com.baykanat.insider.assessment.*"

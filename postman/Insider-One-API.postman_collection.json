@@ -1,0 +1,158 @@
+{
+  "info": {
+    "name": "Insider One - Event Ingestion API",
+    "description": "API istekleri: event ingestion, bulk, metrics, health. Base URL: `{{baseUrl}}` (varsayılan: http://localhost:8080)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & Actuator",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health",
+            "description": "Uygulama sağlık durumu. Docker/Postman ile ilk test için kullanın."
+          }
+        },
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/prometheus",
+            "description": "Prometheus formatında metrikler."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "POST /events - Tek event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_name\": \"product_view\",\n  \"channel\": \"web\",\n  \"campaign_id\": \"cmp_987\",\n  \"user_id\": \"user_123\",\n  \"timestamp\": 1771156800,\n  \"tags\": [\"electronics\", \"homepage\", \"flash_sale\"],\n  \"metadata\": {\n    \"product_id\": \"prod-789\",\n    \"price\": 129.99,\n    \"currency\": \"TRY\",\n    \"referrer\": \"google\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/events",
+            "description": "Tek bir event gönderir. Zorunlu alanlar: event_name, user_id, timestamp. 202 Accepted döner."
+          }
+        },
+        {
+          "name": "POST /events - Minimal (sadece zorunlu alanlar)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_name\": \"product_view\",\n  \"user_id\": \"user_123\",\n  \"timestamp\": 1771156800\n}"
+            },
+            "url": "{{baseUrl}}/events",
+            "description": "Sadece zorunlu alanlarla event. channel, campaign_id, tags, metadata isteğe bağlı."
+          }
+        },
+        {
+          "name": "POST /events/bulk - Toplu event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"events\": [\n    {\n      \"event_name\": \"product_view\",\n      \"user_id\": \"user_123\",\n      \"timestamp\": 1771156800,\n      \"channel\": \"web\",\n      \"campaign_id\": \"cmp_987\"\n    },\n    {\n      \"event_name\": \"add_to_cart\",\n      \"user_id\": \"user_456\",\n      \"timestamp\": 1771156810,\n      \"channel\": \"mobile\",\n      \"campaign_id\": \"cmp_789\"\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/events/bulk",
+            "description": "En fazla 1000 event tek istekte. Her event aynı validasyondan geçer. 202 Accepted."
+          }
+        },
+        {
+          "name": "POST /events - Validation hatası örneği",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"user_123\"\n}"
+            },
+            "url": "{{baseUrl}}/events",
+            "description": "event_name ve timestamp eksik; 400 Bad Request ve hata detayları döner."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "GET /metrics - Saatlik (varsayılan)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/metrics?event_name=product_view&from=1771113600&to=1771200000",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics"],
+              "query": [
+                { "key": "event_name", "value": "product_view", "description": "Zorunlu" },
+                { "key": "from", "value": "1771113600", "description": "Zorunlu - Unix epoch saniye" },
+                { "key": "to", "value": "1771200000", "description": "Zorunlu - Unix epoch saniye" }
+              ]
+            },
+            "description": "event_name, from, to zorunlu. group_by varsayılan: hourly. Not: Metrikler materialized view'dan gelir; view dakikada bir yenilenir. Event gönderdikten sonra 1-2 dakika bekleyip tekrar deneyin."
+          }
+        },
+        {
+          "name": "GET /metrics - Günlük + channel filtresi",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/metrics?event_name=product_view&from=1771113600&to=1771200000&channel=web&group_by=daily",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics"],
+              "query": [
+                { "key": "event_name", "value": "product_view" },
+                { "key": "from", "value": "1771113600" },
+                { "key": "to", "value": "1771200000" },
+                { "key": "channel", "value": "web", "description": "İsteğe bağlı" },
+                { "key": "group_by", "value": "daily", "description": "hourly veya daily" }
+              ]
+            },
+            "description": "Günlük kırılım ve channel filtresi ile metrikler. Event'ten 1-2 dk sonra sonuç görünür (MV refresh gecikmesi)."
+          }
+        }
+      ]
+    }
+  ]
+}

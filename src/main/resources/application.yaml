@@ -1,0 +1,152 @@
+spring:
+  application:
+    name: insider-one-assessment
+
+  # Java 21 virtual thread: yüksek eşzamanlılıkta thread tükenmesini azaltır.
+  threads:
+    virtual:
+      enabled: true
+
+  # PostgreSQL: HikariCP, yazım ağırlıklı iş yükü için havuz boyutu ayarlı.
+  datasource:
+    url: jdbc:postgresql://localhost:5432/insiderone
+    username: insider
+    password: insider123
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  # Flyway: şema sürümleme ile tekrarlanabilir deployment.
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  # Kafka yapılandırması.
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # acks=all: mesaj tüm in-sync replica'lara yazılmadan onay dönmez.
+      acks: all
+      # Geçici broker hataları için Kafka'nın kendi retry sayısı.
+      retries: 3
+      properties:
+        # Kafka retry'ları arasındaki bekleme (ms).
+        retry.backoff.ms: 200
+        # Buffer dolunca producer'ın bloklama süresi; doğal backpressure.
+        max.block.ms: 2000
+        # Gönderim buffer boyutu (64MB); patlama kapasitesi için.
+        buffer.memory: 67108864
+        # Mesajları toplu göndermek için bekleme süresi (ms).
+        linger.ms: 20
+        # Toplu gönderim batch boyutu; daha az ağ round-trip.
+        batch.size: 65536
+        # Retry'da çift gönderimi engelleyen idempotence.
+        enable.idempotence: true
+
+    consumer:
+      group-id: event-ingestion-group
+      # Hatalı kayıt batch'i düşürmez; hatalı olan DLT'ye, diğerleri işlenir.
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      # İlk katılmada en eski offset'ten başla; event kaçmasın.
+      auto-offset-reset: earliest
+      # Manuel offset commit; exactly-once için otomatik commit kapalı.
+      enable-auto-commit: false
+      properties:
+        # ErrorHandlingDeserializer'ın kullandığı gerçek deserializer'lar.
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "com.baykanat.insider.assessment.*"
+        # Poll başına kayıt sayısı; 3 thread ile ~30K event/sn kapasite.
+        max.poll.records: 1000
+        max.poll.interval.ms: 300000
+
+    listener:
+      # Toplu tüketim: tek seferde çok kayıt, tek batch INSERT.
+      type: batch
+      ack-mode: manual
+      # 3 consumer thread; 6 partition'ı paylaşır, ~30K event/sn kapasite.
+      concurrency: 3
+
+# Sunucu portu.
+server:
+  port: 8080
+
+# Actuator: health, metrics ve Prometheus endpoint'leri.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+# Resilience4j: circuit breaker ve retry.
+resilience4j:
+  # Kafka kapalıyken hata oranı %50'yi geçince 30 sn açık kalır; 503 döner.
+  circuitbreaker:
+    configs:
+      default:
+        register-health-indicator: true
+    instances:
+      kafkaProducer:
+        register-health-indicator: true
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state:
+          seconds: 30
+        permitted-number-of-calls-in-half-open-state: 3
+        sliding-window-type: COUNT_BASED
+        record-exceptions:
+          - org.apache.kafka.common.errors.TimeoutException
+          - org.apache.kafka.common.errors.RetriableException
+          - java.util.concurrent.ExecutionException
+
+  # Producer retry: 1 retry (toplam 2 deneme), sabit 200ms; exponential backoff kapalı.
+  retry:
+    configs:
+      default:
+        register-health-indicator: true
+    instances:
+      kafkaProducer:
+        max-attempts: 2
+        wait-duration:
+          seconds: 0
+          nanos: 200000000
+        enable-exponential-backoff: false
+        retry-exceptions:
+          - org.apache.kafka.common.errors.TimeoutException
+          - org.apache.kafka.common.errors.RetriableException
+          - java.util.concurrent.ExecutionException
+        ignore-exceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+
+# OpenAPI / Swagger UI.
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+# Uygulama özel ayarları.
+app:
+  kafka:
+    topic:
+      events-ingestion: events-ingestion
+  scheduler:
+    # MV yenileme aralığı (ms); 60000=1 dk, 30000=30 sn daha taze metrik.
+    materialized-view-refresh-rate: 60000
+    # MV ilk yenilemenin açılıştan kaç ms sonra yapılacağı.
+    materialized-view-refresh-initial-delay: 30000
+    # Inbox temizleme aralığı (ms).
+    inbox-cleanup-rate: 3600000
+    # Inbox kayıtlarının tutulacağı gün sayısı.
+    inbox-retention-days: 7
+    # event_metrics MV'de son kaç günlük veri kullanılacak.
+    mv-retention-days: 7

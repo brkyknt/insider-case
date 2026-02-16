@@ -1,0 +1,111 @@
+# =============================================================================
+# Docker Compose - Insider One Assessment
+#
+# Services:
+#   - postgres:   PostgreSQL 16 (persistent event storage)
+#   - zookeeper:  Kafka coordination service
+#   - kafka:      Event streaming broker (buffer between API and consumers)
+#   - app:        Spring Boot application
+#
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose logs -f app    # Follow application logs
+#   docker-compose down -v        # Stop and remove volumes
+# =============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL 16
+  # Primary data store for events, inbox (idempotency), and materialized views.
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16
+    container_name: insider-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: insiderone
+      POSTGRES_USER: insider
+      POSTGRES_PASSWORD: insider123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U insider -d insiderone"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --------------------------------------------------------------------------
+  # Zookeeper - Kafka coordination
+  # Required for Kafka broker metadata management and leader election.
+  # --------------------------------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.1
+    container_name: insider-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --------------------------------------------------------------------------
+  # Kafka Broker
+  # Acts as a high-throughput buffer between the API layer and consumers.
+  # Decouples ingestion from processing, enabling the API to return 202 Accepted
+  # immediately without waiting for database writes.
+  # Two listeners: internal (kafka:29092) for container-to-container,
+  # external (localhost:9092) for host development.
+  # --------------------------------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: insider-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_NUM_PARTITIONS: 6
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # --------------------------------------------------------------------------
+  # Application - Spring Boot
+  # Runs with the 'docker' profile which overrides datasource and Kafka
+  # bootstrap server URLs to use Docker service names.
+  # --------------------------------------------------------------------------
+  app:
+    build: .
+    container_name: insider-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+volumes:
+  postgres_data:

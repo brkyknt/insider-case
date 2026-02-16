@@ -1,0 +1,20 @@
+# Test profile: Testcontainers ile entegrasyon testleri için override'lar.
+spring:
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: "*"
+    listener:
+      type: batch
+      ack-mode: manual
+      concurrency: 1
+
+app:
+  kafka:
+    topic:
+      events-ingestion: events-ingestion
+  scheduler:
+    materialized-view-refresh-rate: 300000
+    inbox-cleanup-rate: 300000
+    inbox-retention-days: 7
