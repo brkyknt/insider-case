@@ -135,8 +135,7 @@ Batch INSERT için `batchUpdate()` kullanılıyor; partitioned table ve material
 
 ```bash
 # Depoyu klonlayın
-git clone <depo-url>
-cd assessment
+git clone https://github.com/brkyknt/insider-case.git
 
 # Tüm servisleri başlatın (PostgreSQL, Kafka, Zookeeper, Uygulama)
 docker compose up -d
@@ -161,7 +160,7 @@ Uygulama adresleri:
 
 2. **Proje dizinine gidin:**
    ```bash
-   cd /path/to/insider-one/assessment
+   cd /path/to/insider-case
    ```
 
 3. **Tüm servisleri başlatın:**
@@ -322,7 +321,7 @@ Hazır Postman koleksiyonu ile tüm endpoint’leri test edebilirsiniz.
 ### Koleksiyonu içe aktarma
 
 1. Postman’ı açın.
-2. **Import** → **File** → `assessment/postman/Insider-One-API.postman_collection.json` seçin.
+2. **Import** → **File** → `postman/Insider-One-API.postman_collection.json` seçin.
 3. **Insider One - Event Ingestion API** koleksiyonu eklenir.
 
 ### Ortam
@@ -538,7 +537,7 @@ GROUP BY ...
 ## Proje Yapısı
 
 ```
-assessment/
+insider-case/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── postman/
@@ -564,3 +563,4 @@ assessment/
 │       └── db/migration/
 └── src/test/
 ```
+
